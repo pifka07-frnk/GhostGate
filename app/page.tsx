@@ -4,6 +4,7 @@ import ShieldBounceAnimation from "@/components/ShieldBounceAnimation";
 import Features from "@/components/Features";
 import TechFocus from "@/components/TechFocus";
 import WaitlistForm from "@/components/WaitlistForm";
+import Link from "next/link";
 
 export default function Home() {
   return (
@@ -11,7 +12,12 @@ export default function Home() {
       <header className="fixed top-0 left-0 right-0 z-50 border-b border-ghost-border bg-ghost-black/80 backdrop-blur-xl">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
           <span className="font-bold text-white tracking-tight">GhostGate</span>
-          <span className="text-xs text-zinc-500 uppercase tracking-wider">Coming Soon</span>
+          <Link
+            href="/dashboard"
+            className="text-xs font-semibold uppercase tracking-wider px-3 py-1.5 rounded-full bg-ghost-neon text-ghost-black hover:bg-ghost-neon-dim hover:shadow-neon transition-all"
+          >
+            Join Now
+          </Link>
         </div>
       </header>
 
