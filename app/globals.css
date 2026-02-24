@@ -43,3 +43,20 @@ body {
   mask-composite: exclude;
   pointer-events: none;
 }
+
+@keyframes matrix-sweep {
+  0% { transform: translateY(-100%); opacity: 0.8; }
+  50% { opacity: 0.4; }
+  100% { transform: translateY(100%); opacity: 0; }
+}
+
+.matrix-sweep-layer {
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(0, 255, 136, 0.08) 20%,
+    rgba(0, 255, 136, 0.25) 50%,
+    rgba(0, 255, 136, 0.08) 80%,
+    transparent 100%
+  );
+}
