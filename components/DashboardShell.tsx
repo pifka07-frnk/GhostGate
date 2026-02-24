@@ -904,7 +904,9 @@ export default function DashboardShell() {
                   </p>
                   <p className="text-sm text-zinc-300">Letzte Verschleierungsvorgänge.</p>
                 </div>
-                <Radar className="w-5 h-5 text-ghost-neon" title="Tracking Logs" />
+                <span title="Tracking Logs">
+                  <Radar className="w-5 h-5 text-ghost-neon" />
+                </span>
               </div>
 
               <div className="space-y-3 text-sm overflow-y-auto overflow-x-hidden max-h-[280px] scrollbar-ghost pr-1">
