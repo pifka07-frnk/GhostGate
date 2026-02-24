@@ -60,3 +60,31 @@ body {
     transparent 100%
   );
 }
+
+/* Neon-Green Scrollbar für Tracking-Logs / Cyber-Look */
+.scrollbar-ghost {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 255, 136, 0.6) transparent;
+}
+.scrollbar-ghost::-webkit-scrollbar {
+  width: 5px;
+}
+.scrollbar-ghost::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-ghost::-webkit-scrollbar-thumb {
+  background: rgba(0, 255, 136, 0.5);
+  border-radius: 999px;
+}
+.scrollbar-ghost::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 255, 136, 0.8);
+}
+
+/* Easter Egg: Scan-Linie */
+@keyframes scan-line {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+.scan-line {
+  animation: scan-line 3s linear forwards;
+}

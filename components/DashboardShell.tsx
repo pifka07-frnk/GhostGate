@@ -172,6 +172,9 @@ export default function DashboardShell() {
   const [outputFlashRed, setOutputFlashRed] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
   const [panicMode, setPanicMode] = useState(false);
+  const [showEasterEgg, setShowEasterEgg] = useState(false);
+  const logoClickCountRef = useRef(0);
+  const logoClickTimeRef = useRef(0);
 
   const getAudioContext = (): AudioContext | null => {
     if (typeof window === "undefined") return null;
@@ -341,6 +344,18 @@ export default function DashboardShell() {
     setPanicMode(false);
   };
 
+  const handleLogoClick = () => {
+    const now = Date.now();
+    if (now - logoClickTimeRef.current > 800) logoClickCountRef.current = 0;
+    logoClickCountRef.current += 1;
+    logoClickTimeRef.current = now;
+    if (logoClickCountRef.current >= 5) {
+      logoClickCountRef.current = 0;
+      setShowEasterEgg(true);
+      window.setTimeout(() => setShowEasterEgg(false), 3000);
+    }
+  };
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -408,20 +423,39 @@ export default function DashboardShell() {
         </div>
       ) : null}
 
+      {showEasterEgg && !panicMode ? (
+        <div className="fixed inset-0 z-[9998] pointer-events-none flex items-center justify-center bg-ghost-black/90">
+          <p className="font-mono text-ghost-neon text-sm sm:text-base px-4 py-2 border border-ghost-neon/50 bg-ghost-black/80 shadow-neon rounded-lg animate-pulse">
+            ACCESS GRANTED: WELCOME GHOST #001
+          </p>
+          <div
+            className="absolute inset-0 scan-line pointer-events-none"
+            aria-hidden
+          >
+            <div className="w-full h-px bg-gradient-to-r from-transparent via-ghost-neon/80 to-transparent shadow-[0_0_20px_rgba(0,255,136,0.6)]" />
+          </div>
+        </div>
+      ) : null}
+
       <div className="min-h-screen bg-ghost-black text-zinc-100 flex flex-col md:flex-row">
       {/* Sidebar */}
       <aside className="md:w-64 border-b md:border-b-0 md:border-r border-ghost-border bg-ghost-anthracite/80 backdrop-blur-xl flex md:flex-col justify-between">
         <div className="flex md:flex-col items-center md:items-stretch gap-4 px-4 py-3 md:py-6">
           {/* Logo / App Name */}
-          <div className="flex items-center gap-3 md:mb-6">
+          <button
+            type="button"
+            onClick={handleLogoClick}
+            className="flex items-center gap-3 md:mb-6 rounded-xl focus:outline-none focus:ring-2 focus:ring-ghost-neon/40"
+            aria-label="GhostGate"
+          >
             <div className="w-8 h-8 rounded-xl bg-ghost-neon/10 border border-ghost-neon/60 flex items-center justify-center shadow-neon-sm">
               <Globe2 className="w-4 h-4 text-ghost-neon" />
             </div>
-            <div className="hidden md:block">
+            <div className="hidden md:block text-left">
               <p className="text-sm font-semibold text-white leading-tight">GhostGate</p>
               <p className="text-xs text-zinc-500">Dashboard</p>
             </div>
-          </div>
+          </button>
 
           {/* Nav */}
           <nav className="flex-1 flex md:flex-col gap-2 w-full">
@@ -446,7 +480,8 @@ export default function DashboardShell() {
           <button
             type="button"
             onClick={triggerPanic}
-            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-semibold border border-red-500 transition-colors"
+            title="Sofort tarnen (Escape)"
+            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-semibold border border-red-500 transition-all active:scale-[0.98] active:shadow-[0_0_25px_rgba(239,68,68,0.6)]"
           >
             <AlertTriangle className="w-4 h-4" />
             PANIC
@@ -555,7 +590,8 @@ export default function DashboardShell() {
               <button
                 onClick={handleGenerate}
                 disabled={isGenerating}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-ghost-neon text-ghost-black font-semibold hover:bg-ghost-neon-dim hover:shadow-neon transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                title="Generate new identity"
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-ghost-neon text-ghost-black font-semibold hover:bg-ghost-neon-dim hover:shadow-neon transition-all disabled:opacity-60 disabled:cursor-not-allowed active:scale-[0.98] active:shadow-[0_0_25px_rgba(0,255,136,0.6)]"
               >
                 {isGenerating ? (
                   <span className="inline-flex items-center gap-2">
@@ -718,7 +754,8 @@ export default function DashboardShell() {
                 <button
                   type="button"
                   onClick={handleEncrypt}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-ghost-neon text-ghost-black font-semibold hover:bg-ghost-neon-dim hover:shadow-neon transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                  title="Encrypt message"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-ghost-neon text-ghost-black font-semibold hover:bg-ghost-neon-dim hover:shadow-neon transition-all disabled:opacity-60 disabled:cursor-not-allowed active:scale-[0.98] active:shadow-[0_0_25px_rgba(0,255,136,0.6)]"
                 >
                   <Lock className="w-4 h-4" />
                   Encrypt
@@ -726,12 +763,13 @@ export default function DashboardShell() {
                 <button
                   type="button"
                   onClick={handleDecrypt}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-ghost-neon/50 bg-ghost-neon/10 text-ghost-neon font-semibold hover:bg-ghost-neon/20 hover:shadow-neon-sm transition-all"
+                  title="Decrypt with key"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-ghost-neon/50 bg-ghost-neon/10 text-ghost-neon font-semibold hover:bg-ghost-neon/20 hover:shadow-neon-sm transition-all active:scale-[0.98] active:shadow-[0_0_15px_rgba(0,255,136,0.4)]"
                 >
                   <Unlock className="w-4 h-4" />
                   Decrypt
                 </button>
-                <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                <label className="inline-flex items-center gap-2 cursor-pointer select-none" title="Burn message after 10s">
                   <input
                     type="checkbox"
                     checked={selfDestructEnabled}
@@ -807,11 +845,11 @@ export default function DashboardShell() {
                 <Activity className="w-5 h-5 text-ghost-neon" />
               </div>
 
-              <div className="relative mt-2 h-48 sm:h-56 rounded-xl bg-gradient-to-br from-zinc-900/80 via-ghost-anthracite/80 to-zinc-900/80 border border-ghost-border overflow-hidden">
+              <div className="relative mt-2 h-36 sm:h-48 md:h-56 rounded-xl bg-gradient-to-br from-zinc-900/80 via-ghost-anthracite/80 to-zinc-900/80 border border-ghost-border overflow-hidden min-h-0">
                 <div className="absolute inset-0 bg-grid-pattern opacity-40" />
 
                 {/* Geisterhafte Datenzellen – zufällige grüne Lichter */}
-                <div className="relative w-full h-full grid grid-cols-6 sm:grid-cols-8 gap-2 p-4">
+                <div className="relative w-full h-full grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-1 sm:gap-2 p-2 sm:p-4 min-h-0">
                   {streamCells.map((cell) => (
                     <motion.div
                       key={cell.id}
@@ -866,10 +904,10 @@ export default function DashboardShell() {
                   </p>
                   <p className="text-sm text-zinc-300">Letzte Verschleierungsvorgänge.</p>
                 </div>
-                <Radar className="w-5 h-5 text-ghost-neon" />
+                <Radar className="w-5 h-5 text-ghost-neon" title="Tracking Logs" />
               </div>
 
-              <div className="space-y-3 text-sm overflow-hidden">
+              <div className="space-y-3 text-sm overflow-y-auto overflow-x-hidden max-h-[280px] scrollbar-ghost pr-1">
                 <AnimatePresence initial={false}>
                   {trackingLogs.map((item) => (
                     <motion.div
