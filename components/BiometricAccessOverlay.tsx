@@ -46,11 +46,14 @@ function playAccessGrantedSound(): void {
 
 export type BiometricAccessOverlayProps = {
   onComplete: () => void;
+  /** Nach Protocol Zero: Scan führt nicht mehr zum Entsperren, bis die Seite neu geladen wird */
+  locked?: boolean;
 };
 
-export default function BiometricAccessOverlay({ onComplete }: BiometricAccessOverlayProps) {
+export default function BiometricAccessOverlay({ onComplete, locked = false }: BiometricAccessOverlayProps) {
   const [scanning, setScanning] = useState(false);
   const [exiting, setExiting] = useState(false);
+  const [showDeniedMessage, setShowDeniedMessage] = useState(false);
   const scanDoneRef = useRef(false);
 
   useEffect(() => {
@@ -61,6 +64,11 @@ export default function BiometricAccessOverlay({ onComplete }: BiometricAccessOv
   }, []);
 
   const startScan = useCallback(() => {
+    if (locked) {
+      setShowDeniedMessage(true);
+      setTimeout(() => setShowDeniedMessage(false), 3000);
+      return;
+    }
     if (scanning || scanDoneRef.current) return;
     triggerHaptic();
     setScanning(true);
@@ -71,7 +79,7 @@ export default function BiometricAccessOverlay({ onComplete }: BiometricAccessOv
       setExiting(true);
     }, SCAN_DURATION_MS);
     return () => clearTimeout(t);
-  }, [scanning, onComplete]);
+  }, [scanning, locked, onComplete]);
 
   return (
     <motion.div
@@ -143,8 +151,13 @@ export default function BiometricAccessOverlay({ onComplete }: BiometricAccessOv
         </div>
 
         <p className="text-sm sm:text-base text-zinc-500 font-medium min-h-[1.5em]">
-          {scanning ? "Scanning Identity…" : "Berühren zum Scannen"}
+          {locked ? "Protocol Zero aktiv – Zugriff gesperrt" : scanning ? "Scanning Identity…" : "Berühren zum Scannen"}
         </p>
+        {locked && showDeniedMessage && (
+          <p className="text-red-400 text-xs font-medium mt-2 animate-pulse">
+            Zugriff verweigert. Bitte Seite neu laden.
+          </p>
+        )}
       </button>
     </motion.div>
   );

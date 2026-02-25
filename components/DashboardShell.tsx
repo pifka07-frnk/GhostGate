@@ -4,6 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import ThreatMap from "@/components/ThreatMap";
 import MobileDeviceLink from "@/components/MobileDeviceLink";
+import GhostVault from "@/components/GhostVault";
+import ProtocolZeroOverlay from "@/components/ProtocolZeroOverlay";
+import {
+  loadVault,
+  saveVault,
+  wipeVaultStorage,
+  type VaultEntry,
+} from "@/lib/ghostVaultStorage";
 import {
   Activity,
   AlertTriangle,
@@ -166,7 +174,21 @@ const INITIAL_LOGS: TrackingLogEntry[] = [
   { id: "3", title: "Virtual Card refreshed", description: "neue synthetische Kartendaten erstellt", time: "heute, 08:17", createdAt: Date.now() - 3600_000 },
 ];
 
-export default function DashboardShell() {
+function getInitialLogs(): TrackingLogEntry[] {
+  const now = Date.now();
+  return [
+    { id: "0", title: "Fake Email generated", description: "für Amazon Login verwendet", time: "vor 3 Min", createdAt: now - 180_000 },
+    { id: "1", title: "Tracker blocked", description: "Google Analytics auf news-portal.com", time: "vor 12 Min", createdAt: now - 720_000 },
+    { id: "2", title: "Location Spoofing active", description: "Standort auf Tokio gesetzt", time: "vor 45 Min", createdAt: now - 2700_000 },
+    { id: "3", title: "Virtual Card refreshed", description: "neue synthetische Kartendaten erstellt", time: "heute, 08:17", createdAt: now - 3600_000 },
+  ];
+}
+
+export type DashboardShellProps = {
+  onProtocolZeroComplete?: () => void;
+};
+
+export default function DashboardShell({ onProtocolZeroComplete }: DashboardShellProps) {
   const streamCells = useMemo(
     () =>
       Array.from({ length: 24 }, (_, i) => ({
@@ -201,6 +223,9 @@ export default function DashboardShell() {
   const logoClickTimeRef = useRef(0);
   const [systemHealth, setSystemHealth] = useState<SystemHealth>(getSystemHealth);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [vaultEntries, setVaultEntries] = useState<VaultEntry[]>([]);
+  const [vaultOpen, setVaultOpen] = useState(false);
+  const [protocolZeroActive, setProtocolZeroActive] = useState(false);
 
   const getAudioContext = (): AudioContext | null => {
     if (typeof window === "undefined") return null;
@@ -312,13 +337,38 @@ export default function DashboardShell() {
     }
   }, []);
 
+  useEffect(() => {
+    const loaded = loadVault();
+    setVaultEntries(loaded);
+    const lastIdentity = loaded
+      .filter((e): e is import("@/lib/ghostVaultStorage").VaultIdentityEntry => e.type === "identity")
+      .sort((a, b) => b.createdAt - a.createdAt)[0];
+    if (lastIdentity) setIdentity({ name: lastIdentity.name, email: lastIdentity.email, location: lastIdentity.location });
+  }, []);
+
+  useEffect(() => {
+    if (vaultEntries.length > 0) saveVault(vaultEntries);
+  }, [vaultEntries]);
+
   const handleGenerate = () => {
     if (isGenerating) return;
     setIsGenerating(true);
     setIdentity(null);
 
     window.setTimeout(() => {
-      setIdentity(createGhostIdentity());
+      const newIdentity = createGhostIdentity();
+      setIdentity(newIdentity);
+      setVaultEntries((prev) => [
+        ...prev,
+        {
+          id: `vault-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          type: "identity",
+          createdAt: Date.now(),
+          name: newIdentity.name,
+          email: newIdentity.email,
+          location: newIdentity.location,
+        },
+      ]);
       setIsGenerating(false);
     }, 900);
   };
@@ -331,7 +381,19 @@ export default function DashboardShell() {
       selfDestructIntervalRef.current = null;
     }
     window.setTimeout(() => {
-      setSecureOutput(encryptMessage(secureMessage, secureKey));
+      const encrypted = encryptMessage(secureMessage, secureKey);
+      setSecureOutput(encrypted);
+      if (encrypted && encrypted !== "(Key fehlt)") {
+        setVaultEntries((prev) => [
+          ...prev,
+          {
+            id: `vault-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            type: "encryption",
+            createdAt: Date.now(),
+            encryptedBase64: encrypted,
+          },
+        ]);
+      }
       setShowMatrixEffect(false);
       if (selfDestructEnabled) {
         setSelfDestructCountdown(10);
@@ -411,6 +473,43 @@ export default function DashboardShell() {
     document.addEventListener("fullscreenchange", onFullscreenChange);
     return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
   }, []);
+
+  const resetDashboard = useCallback(() => {
+    if (selfDestructIntervalRef.current !== null) {
+      clearInterval(selfDestructIntervalRef.current);
+      selfDestructIntervalRef.current = null;
+    }
+    wipeVaultStorage();
+    setVaultEntries([]);
+    setTrackingLogs(INITIAL_LOGS);
+    setBlockedCount(INITIAL_BLOCKED_COUNT);
+    setIdentity(null);
+    setSecureMessage("");
+    setSecureKey("");
+    setSecureOutput("");
+    setSelfDestructCountdown(null);
+    setOutputFlashRed(false);
+  }, []);
+
+  const handleProtocolZeroComplete = useCallback(() => {
+    if (selfDestructIntervalRef.current !== null) {
+      clearInterval(selfDestructIntervalRef.current);
+      selfDestructIntervalRef.current = null;
+    }
+    if (typeof localStorage !== "undefined") localStorage.clear();
+    setVaultEntries([]);
+    setTrackingLogs(getInitialLogs());
+    setBlockedCount(0);
+    setIdentity(null);
+    setSecureMessage("");
+    setSecureKey("");
+    setSecureOutput("");
+    setSelfDestructCountdown(null);
+    setOutputFlashRed(false);
+    setProtocolZeroActive(false);
+    setVaultOpen(false);
+    onProtocolZeroComplete?.();
+  }, [onProtocolZeroComplete]);
 
   const handleLogoClick = () => {
     const now = Date.now();
@@ -505,7 +604,18 @@ export default function DashboardShell() {
         </div>
       ) : null}
 
-      <div className="min-h-screen bg-ghost-black text-zinc-100 flex flex-col md:flex-row">
+      <ProtocolZeroOverlay active={protocolZeroActive} onComplete={handleProtocolZeroComplete} />
+
+      <GhostVault
+        open={vaultOpen}
+        onClose={() => setVaultOpen(false)}
+        entries={vaultEntries}
+        onDecrypt={decryptMessage}
+        onWipeAll={resetDashboard}
+        onProtocolZeroRequest={() => setProtocolZeroActive(true)}
+      />
+
+      <div className={`min-h-screen bg-ghost-black text-zinc-100 flex flex-col md:flex-row ${protocolZeroActive ? "protocol-zero-glitch" : ""}`}>
       {/* Sidebar */}
       <aside className="md:w-64 border-b md:border-b-0 md:border-r border-ghost-border bg-ghost-anthracite/80 backdrop-blur-xl flex md:flex-col justify-between">
         <div className="flex md:flex-col items-center md:items-stretch gap-4 px-4 py-3 md:py-6">
@@ -597,6 +707,19 @@ export default function DashboardShell() {
               <span className="text-zinc-600">|</span>
               <span title="Netzwerktyp">📶 {systemHealth.network}</span>
             </div>
+            <button
+              type="button"
+              onClick={() => setVaultOpen(true)}
+              title="Encrypted Archive"
+              className="relative inline-flex items-center justify-center p-2.5 rounded-lg border border-ghost-border bg-ghost-anthracite/60 text-zinc-400 hover:text-ghost-neon hover:border-ghost-neon/40 transition-colors"
+            >
+              <Lock className="w-5 h-5 shrink-0" />
+              {vaultEntries.length > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-ghost-neon text-ghost-black text-[10px] font-bold flex items-center justify-center">
+                  {vaultEntries.length}
+                </span>
+              )}
+            </button>
             <button
               type="button"
               onClick={toggleStealthFullscreen}
