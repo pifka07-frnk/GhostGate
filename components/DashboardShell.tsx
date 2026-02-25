@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import ThreatMap from "@/components/ThreatMap";
+import MobileDeviceLink from "@/components/MobileDeviceLink";
 import {
   Activity,
   AlertTriangle,
@@ -13,6 +15,7 @@ import {
   LogOut,
   Mail,
   MapPin,
+  Maximize2,
   Radar,
   Settings,
   Shield,
@@ -22,6 +25,27 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
+
+/** Kurze Vibration, falls vom Gerät unterstützt */
+function triggerHaptic(): void {
+  try {
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      navigator.vibrate(50);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+type SystemHealth = { battery: string; network: string };
+function getSystemHealth(): SystemHealth {
+  if (typeof window === "undefined") return { battery: "—", network: "—" };
+  const nav = navigator as Navigator & {
+    getBattery?: () => Promise<{ level: number; charging: boolean }>;
+    connection?: { effectiveType?: string; type?: string };
+  };
+  return { battery: "…", network: nav.connection?.effectiveType ?? nav.connection?.type ?? "—" };
+}
 
 const NAV_ITEMS = [
   { label: "Overview", icon: LayoutDashboard, active: true },
@@ -175,6 +199,8 @@ export default function DashboardShell() {
   const [showEasterEgg, setShowEasterEgg] = useState(false);
   const logoClickCountRef = useRef(0);
   const logoClickTimeRef = useRef(0);
+  const [systemHealth, setSystemHealth] = useState<SystemHealth>(getSystemHealth);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const getAudioContext = (): AudioContext | null => {
     if (typeof window === "undefined") return null;
@@ -275,6 +301,17 @@ export default function DashboardShell() {
     return () => clearInterval(tick);
   }, []);
 
+  useEffect(() => {
+    setSystemHealth(getSystemHealth());
+    const nav = navigator as Navigator & { getBattery?: () => Promise<{ level: number; charging: boolean }> };
+    if (nav.getBattery) {
+      nav.getBattery().then((b) => {
+        const pct = Math.round(b.level * 100);
+        setSystemHealth((s) => ({ ...s, battery: b.charging ? `${pct}% ⚡` : `${pct}%` }));
+      }).catch(() => {});
+    }
+  }, []);
+
   const handleGenerate = () => {
     if (isGenerating) return;
     setIsGenerating(true);
@@ -330,7 +367,18 @@ export default function DashboardShell() {
     setSecureOutput(decryptMessage(secureMessage, secureKey));
   };
 
+  const handleThreatMapPing = useCallback((entry: { title: string; description: string }) => {
+    const id = `log-${Date.now()}`;
+    const createdAt = Date.now();
+    setBlockedCount((c) => c + 1);
+    setTrackingLogs((prev) => {
+      const next = [{ id, ...entry, time: "gerade eben", createdAt }, ...prev];
+      return next.slice(0, 20);
+    });
+  }, []);
+
   const triggerPanic = () => {
+    triggerHaptic();
     setSoundsMuted(true);
     if (selfDestructIntervalRef.current !== null) {
       clearInterval(selfDestructIntervalRef.current);
@@ -343,6 +391,26 @@ export default function DashboardShell() {
   const exitPanic = () => {
     setPanicMode(false);
   };
+
+  const toggleStealthFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+        setIsFullscreen(true);
+      } else {
+        await document.exitFullscreen();
+        setIsFullscreen(false);
+      }
+    } catch {
+      setIsFullscreen(false);
+    }
+  };
+
+  useEffect(() => {
+    const onFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
 
   const handleLogoClick = () => {
     const now = Date.now();
@@ -502,7 +570,7 @@ export default function DashboardShell() {
       {/* Main area */}
       <div className="flex-1 flex flex-col">
         {/* Top Bar */}
-        <header className="h-16 border-b border-ghost-border bg-ghost-black/80 backdrop-blur-xl px-4 sm:px-6 flex items-center justify-between gap-4">
+        <header className="h-16 border-b border-ghost-border bg-ghost-black/80 backdrop-blur-xl px-4 sm:px-6 flex items-center justify-between gap-4 shrink-0">
           <div className="flex items-center gap-3">
             <motion.div
               className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-ghost-neon/40 bg-ghost-neon/10 text-xs text-ghost-neon shadow-neon-sm"
@@ -523,18 +591,34 @@ export default function DashboardShell() {
             </p>
           </div>
 
-          <button className="flex items-center gap-2 text-sm text-zinc-300 hover:text-white">
-            <div className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center">
-              <User className="w-4 h-4" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="hidden min-[500px]:flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-ghost-border bg-ghost-anthracite/60 text-[10px] sm:text-xs font-mono text-zinc-400" title="System Health">
+              <span title="Batteriestand">🔋 {systemHealth.battery}</span>
+              <span className="text-zinc-600">|</span>
+              <span title="Netzwerktyp">📶 {systemHealth.network}</span>
             </div>
-            <span className="hidden sm:inline">ghost.user</span>
-          </button>
+            <button
+              type="button"
+              onClick={toggleStealthFullscreen}
+              title={isFullscreen ? "Vollbild beenden" : "Go Stealth Mode – Vollbild (wie App)"}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-ghost-neon/40 bg-ghost-neon/10 text-ghost-neon text-xs font-medium hover:bg-ghost-neon/20 transition-colors"
+            >
+              <Maximize2 className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden sm:inline">{isFullscreen ? "Exit Stealth" : "Go Stealth Mode"}</span>
+            </button>
+            <button className="flex items-center gap-2 text-sm text-zinc-300 hover:text-white">
+              <div className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center">
+                <User className="w-4 h-4" />
+              </div>
+              <span className="hidden sm:inline">ghost.user</span>
+            </button>
+          </div>
         </header>
 
-        {/* Content */}
-        <main className="flex-1 px-4 sm:px-6 py-6 space-y-6 overflow-auto">
-          {/* Stats cards */}
-          <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Content: Mobile einspaltig mit Threat Map + Scanner oben (order) */}
+        <main className="flex-1 px-4 sm:px-6 py-6 overflow-auto flex flex-col gap-6">
+          {/* Stats cards – auf Mobile unter Karte/Scanner */}
+          <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 order-3 md:order-1">
             <motion.div
               className="glass-card p-4 sm:p-5"
               whileHover={{ y: -3, boxShadow: "0 0 24px rgba(0,255,136,0.35)" }}
@@ -574,8 +658,31 @@ export default function DashboardShell() {
             </motion.div>
           </section>
 
+          {/* Global Threat Map – auf Mobile ganz oben */}
+          <section className="glass-card p-4 sm:p-5 order-1 md:order-2">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-zinc-500 mb-0.5">
+                  Global Threat Map
+                </p>
+                <p className="text-sm text-zinc-300">
+                  Live-Pings: blockierte Anfragen weltweit. Jeder Ping = neuer Eintrag in den Tracking Logs.
+                </p>
+              </div>
+              <span title="Live Pings">
+                <Activity className="w-5 h-5 text-ghost-neon" />
+              </span>
+            </div>
+            <ThreatMap onPing={handleThreatMapPing} />
+          </section>
+
+          {/* Mobile Device Link – auf Mobile direkt unter Threat Map */}
+          <div className="order-2 md:order-3">
+            <MobileDeviceLink onHaptic={triggerHaptic} />
+          </div>
+
           {/* Ghost Identity Generator */}
-          <section className="glass-card p-5 sm:p-6">
+          <section className="glass-card p-5 sm:p-6 order-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-wide text-zinc-500 mb-1">
@@ -663,7 +770,7 @@ export default function DashboardShell() {
           </section>
 
           {/* Secure Encryption Suite */}
-          <section className="glass-card p-5 sm:p-6 relative overflow-hidden">
+          <section className="glass-card p-5 sm:p-6 relative overflow-hidden order-5">
             <div className="flex items-center justify-between gap-2 mb-4">
               <div className="flex items-center gap-2">
                 <Lock className="w-5 h-5 text-ghost-neon" />
@@ -825,7 +932,7 @@ export default function DashboardShell() {
           </section>
 
           {/* Main widgets: data stream + activity */}
-          <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 order-6">
             {/* Data stream / grid */}
             <motion.div
               className="glass-card p-5 sm:p-6 lg:col-span-2 relative overflow-hidden"

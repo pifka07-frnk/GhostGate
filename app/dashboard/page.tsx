@@ -1,6 +1,6 @@
-import DashboardShell from "@/components/DashboardShell";
+import DashboardWithBiometric from "./DashboardWithBiometric";
 
 export default function DashboardPage() {
-  return <DashboardShell />;
+  return <DashboardWithBiometric />;
 }
 
