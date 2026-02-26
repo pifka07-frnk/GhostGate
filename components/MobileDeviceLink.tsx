@@ -48,9 +48,12 @@ function getDeviceInfo(): { os: string; resolution: string; battery: string } {
   return { os, resolution, battery: "…" };
 }
 
-export type MobileDeviceLinkProps = { onHaptic?: () => void };
+export type MobileDeviceLinkProps = {
+  onHaptic?: () => void;
+  externalScanSignal?: number;
+};
 
-export default function MobileDeviceLink({ onHaptic }: MobileDeviceLinkProps) {
+export default function MobileDeviceLink({ onHaptic, externalScanSignal }: MobileDeviceLinkProps) {
   const [scanning, setScanning] = useState(false);
   const [scanComplete, setScanComplete] = useState(false);
   const [currentFile, setCurrentFile] = useState<string | null>(null);
@@ -126,6 +129,12 @@ export default function MobileDeviceLink({ onHaptic }: MobileDeviceLinkProps) {
       setTimeout(() => setShowMatrix(false), 1600);
     }, SCAN_DURATION_MS);
   }, [scanning, onHaptic]);
+
+  // Externer Scan-Trigger (z.B. aus dem Stealth-Terminal via /scan)
+  useEffect(() => {
+    if (!externalScanSignal) return;
+    startDeepScan();
+  }, [externalScanSignal, startDeepScan]);
 
   const startIntercept = useCallback(() => {
     if (showFileScanner) return;

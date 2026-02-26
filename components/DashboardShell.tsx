@@ -6,6 +6,7 @@ import ThreatMap from "@/components/ThreatMap";
 import MobileDeviceLink from "@/components/MobileDeviceLink";
 import GhostVault from "@/components/GhostVault";
 import ProtocolZeroOverlay from "@/components/ProtocolZeroOverlay";
+import StealthTerminal, { type StealthTerminalEntry } from "@/components/StealthTerminal";
 import {
   loadVault,
   saveVault,
@@ -184,6 +185,8 @@ function getInitialLogs(): TrackingLogEntry[] {
   ];
 }
 
+type TerminalEntry = StealthTerminalEntry;
+
 export type DashboardShellProps = {
   onProtocolZeroComplete?: () => void;
 };
@@ -226,6 +229,9 @@ export default function DashboardShell({ onProtocolZeroComplete }: DashboardShel
   const [vaultEntries, setVaultEntries] = useState<VaultEntry[]>([]);
   const [vaultOpen, setVaultOpen] = useState(false);
   const [protocolZeroActive, setProtocolZeroActive] = useState(false);
+  const [terminalOpen, setTerminalOpen] = useState(false);
+  const [terminalEntries, setTerminalEntries] = useState<TerminalEntry[]>([]);
+  const [scanSignal, setScanSignal] = useState(0);
 
   const getAudioContext = (): AudioContext | null => {
     if (typeof window === "undefined") return null;
@@ -511,6 +517,74 @@ export default function DashboardShell({ onProtocolZeroComplete }: DashboardShel
     onProtocolZeroComplete?.();
   }, [onProtocolZeroComplete]);
 
+  const appendTerminalLine = useCallback((text: string) => {
+    setTerminalEntries((prev) => [
+      ...prev.slice(-199),
+      { id: `term-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, text },
+    ]);
+  }, []);
+
+  const handleTerminalCommand = useCallback(
+    (rawInput: string) => {
+      const input = rawInput.trim();
+      if (!input) return;
+      appendTerminalLine(`> ${input}`);
+
+      const cmd = input.toLowerCase();
+
+      if (cmd === "/scan") {
+        appendTerminalLine("Accessing hardware telemetry... [OK]");
+        setSystemHealth(getSystemHealth());
+        const nav = navigator as Navigator & { getBattery?: () => Promise<{ level: number; charging: boolean }> };
+        nav.getBattery
+          ?.()
+          .then((b) => {
+            const pct = Math.round(b.level * 100);
+            setSystemHealth((s) => ({ ...s, battery: b.charging ? `${pct}% ⚡` : `${pct}%` }));
+          })
+          .catch(() => {});
+        setScanSignal((n) => n + 1);
+        return;
+      }
+
+      if (cmd === "/vault") {
+        appendTerminalLine("Accessing secure vault... [OK]");
+        setVaultOpen(true);
+        return;
+      }
+
+      if (cmd === "/wipe") {
+        appendTerminalLine("INITIALIZING PROTOCOL ZERO...");
+        setProtocolZeroActive(true);
+        return;
+      }
+
+      if (cmd === "/status") {
+        const totalThreats = blockedCount;
+        const last = trackingLogs[0];
+        const summary =
+          totalThreats === 0
+            ? "Status: Keine aktiven Bedrohungen erkannt."
+            : `Status: ${totalThreats} blockierte Tracker in dieser Session. Letzter Eintrag: ${last?.title ?? "–"} (${last?.description ?? "keine Details"}).`;
+        appendTerminalLine(summary);
+        return;
+      }
+
+      if (cmd === "/clear") {
+        setTerminalEntries([]);
+        return;
+      }
+
+      if (cmd === "/help") {
+        appendTerminalLine("Verfügbare Befehle: /scan, /vault, /wipe, /status, /clear");
+        return;
+      }
+
+      appendTerminalLine("Unbekannter Befehl. Nutze /help für eine Liste der Kommandos.");
+    },
+    [appendTerminalLine, blockedCount, trackingLogs]
+  );
+
   const handleLogoClick = () => {
     const now = Date.now();
     if (now - logoClickTimeRef.current > 800) logoClickCountRef.current = 0;
@@ -532,6 +606,15 @@ export default function DashboardShell({ onProtocolZeroComplete }: DashboardShel
       if (e.ctrlKey && e.altKey && e.key.toLowerCase() === "g") {
         e.preventDefault();
         exitPanic();
+      }
+       if (!panicMode && (e.key === "^" || e.key === "Dead")) {
+        const target = e.target as HTMLElement | null;
+        const tag = target?.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || target?.getAttribute("contenteditable") === "true") {
+          return;
+        }
+        e.preventDefault();
+        setTerminalOpen((open) => !open);
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -613,6 +696,14 @@ export default function DashboardShell({ onProtocolZeroComplete }: DashboardShel
         onDecrypt={decryptMessage}
         onWipeAll={resetDashboard}
         onProtocolZeroRequest={() => setProtocolZeroActive(true)}
+      />
+
+      {/* Stealth-Terminal */}
+      <StealthTerminal
+        open={terminalOpen}
+        entries={terminalEntries}
+        onSubmit={handleTerminalCommand}
+        onClose={() => setTerminalOpen(false)}
       />
 
       <div className={`min-h-screen bg-ghost-black text-zinc-100 flex flex-col md:flex-row ${protocolZeroActive ? "protocol-zero-glitch" : ""}`}>
@@ -801,7 +892,7 @@ export default function DashboardShell({ onProtocolZeroComplete }: DashboardShel
 
           {/* Mobile Device Link – auf Mobile direkt unter Threat Map */}
           <div className="order-2 md:order-3">
-            <MobileDeviceLink onHaptic={triggerHaptic} />
+            <MobileDeviceLink onHaptic={triggerHaptic} externalScanSignal={scanSignal} />
           </div>
 
           {/* Ghost Identity Generator */}
